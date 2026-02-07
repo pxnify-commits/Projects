@@ -1,5 +1,5 @@
 -- ==============================================================================
--- 👑 SABER GOD MODE - MAIN SCRIPT (Hosted)
+-- 👑 SABER GOD MODE - MAIN SCRIPT (Updated Pickup)
 -- ==============================================================================
 
 -- Fallback, falls Config nicht geladen wurde (Sicherheit)
@@ -168,8 +168,10 @@ end
 CreateStatsHUD()
 
 -- ==============================================================================
--- 3. FARMING LOOPS
+-- 3. FARMING LOOPS (Swing, Sell, Pickup)
 -- ==============================================================================
+
+-- Auto Swing
 task.spawn(function()
     while task.wait(0.1) do
         if Config.AutoSwing then
@@ -180,6 +182,7 @@ task.spawn(function()
     end
 end)
 
+-- Auto Sell
 task.spawn(function()
     while task.wait(1) do
         if Config.AutoSell then
@@ -188,23 +191,68 @@ task.spawn(function()
     end
 end)
 
-task.spawn(function()
-    while task.wait(0.2) do
-        if Config.AutoPickup then
-            pcall(function()
-                local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    for _, v in pairs(Workspace.Gameplay.Coins:GetChildren()) do
-                        if v:IsA("BasePart") and (v.Position - hrp.Position).Magnitude < 100 then
-                            v.CFrame = hrp.CFrame
-                        end
+-- ==============================================================================
+-- ⚡ NEW AUTO PICKUP SYSTEM (Heart/Currency Instant Teleport)
+-- ==============================================================================
+local heartsNearPlayer = {}
+local currencyRemote = RS.Events:FindFirstChild("CollectCurrencyPickup")
+local currencyHolder = Workspace.Gameplay:FindFirstChild("CurrencyPickup") and Workspace.Gameplay.CurrencyPickup:FindFirstChild("CurrencyHolder")
+
+if currencyRemote and currencyHolder then
+    print("✅ Pickup System initialized")
+    
+    -- PHYSICS LOOP (Heartbeat)
+    RunService.Heartbeat:Connect(function()
+        if not Config.AutoPickup then return end
+        
+        local char = LocalPlayer.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+
+        if root then
+            -- Liste leeren
+            heartsNearPlayer = {} 
+
+            for _, item in pairs(currencyHolder:GetChildren()) do
+                -- Filtert nach "Heart" (wie im Script gewünscht)
+                if item.Name == "Heart" then
+                    local part = nil
+                    if item:IsA("BasePart") then
+                        part = item
+                    elseif item:IsA("Model") then
+                        part = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
+                    end
+
+                    if part then
+                        -- Physik manipulieren
+                        part.CanCollide = false
+                        part.Velocity = Vector3.new(0,0,0)
+                        part.RotVelocity = Vector3.new(0,0,0)
+                        part.CFrame = root.CFrame -- Teleport zu Spieler
+                        
+                        table.insert(heartsNearPlayer, item)
                     end
                 end
-            end)
+            end
         end
-    end
-end)
+    end)
 
+    -- NETWORK LOOP (Firing Event)
+    task.spawn(function()
+        while task.wait(0.1) do
+            if Config.AutoPickup and #heartsNearPlayer > 0 then
+                pcall(function()
+                    currencyRemote:FireServer(heartsNearPlayer)
+                end)
+            end
+        end
+    end)
+else
+    warn("⚠️ Pickup System Warning: Pfade nicht gefunden (CurrencyHolder/Event)")
+end
+
+-- ==============================================================================
+-- 4. AUTO BUY & DUNGEON LOGIC
+-- ==============================================================================
 task.spawn(function()
     while task.wait(0.5) do
         if Config.AutoBuy then
@@ -224,9 +272,6 @@ task.spawn(function()
     end
 end)
 
--- ==============================================================================
--- 4. DUNGEON LOGIC
--- ==============================================================================
 local function GetDungeonTarget()
     local dId = LocalPlayer:GetAttribute("DungeonId")
     if not dId then return nil end
@@ -323,4 +368,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ SABER SCRIPT LOADED FROM GITHUB")
+print("✅ SABER SCRIPT LOADED FROM GITHUB (WITH NEW PICKUP)")
