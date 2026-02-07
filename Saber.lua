@@ -1,5 +1,5 @@
 -- ==============================================================================
--- 👑 SABER GOD MODE - MAIN SCRIPT (SEPARATE FUNCTIONS)
+-- 👑 SABER GOD MODE - MAIN SCRIPT (REJOIN REQUIRED FOR FIX)
 -- ==============================================================================
 
 if not getgenv().Config then
@@ -26,8 +26,9 @@ local LocalPlayer = Players.LocalPlayer
 
 local startTime = os.time()
 local sessionEggs = 0 
-local eggSpotCoords = Vector3.new(558.31, 184.32, -25.65)
-local eggSpotFrame = CFrame.new(558.311035, 184.320892, -25.6451225, -0.659114897, 3.71071751e-09, -0.752042234, -6.06633819e-08, 1, 5.81015982e-08, 0.752042234, 8.39170511e-08, -0.659114897)
+-- Deine Koordinaten:
+local eggSpotFrame = CFrame.new(558.31, 184.32, -25.65) 
+local eggSpotVector = Vector3.new(558.31, 184.32, -25.65)
 
 -- ==============================================================================
 -- 🛠️ ANTI-AFK
@@ -51,7 +52,6 @@ end
 local targetEggName = ""
 local function ScanAndSelectEgg()
     local EggList = {}
-    print("🔄 Scanne Egg Module...")
     local success, PetShopInfo = pcall(function() return require(RS.Modules.PetsInfo:WaitForChild("PetShopInfo", 10)) end)
 
     if success and PetShopInfo then
@@ -86,82 +86,63 @@ end
 task.spawn(ScanAndSelectEgg)
 
 -- ==============================================================================
--- 1. OPTIMIERUNG (FPS & MAP WIPE GETRENNT)
+-- 1. AGGRESSIVE MAP WIPE & PLATFORM
 -- ==============================================================================
+if Config.MapWipe then
+    -- Plattform erstellen (bleibt für immer da)
+    local safePlat = Instance.new("Part")
+    safePlat.Name = "FPS_SafePlatform_Persistent"
+    safePlat.Size = Vector3.new(50, 1, 50)
+    safePlat.Position = eggSpotVector - Vector3.new(0, 3, 0)
+    safePlat.Anchored = true
+    safePlat.CanCollide = true
+    safePlat.Material = Enum.Material.ForceField
+    safePlat.Color = Color3.new(0,0,0)
+    safePlat.Parent = Workspace
 
--- A) TEXTUREN & LICHT (BoostFPS)
-if Config.BoostFPS then
-    local lighting = game:GetService("Lighting")
-    lighting.GlobalShadows = false
-    lighting.FogEnd = 9e9
-    lighting.Brightness = 0
-    for _, v in pairs(lighting:GetChildren()) do
-        if v:IsA("PostEffect") or v:IsA("BlurEffect") or v:IsA("SunRaysEffect") then v:Destroy() end
-    end
-    
-    local function clearTextures()
-        for _, v in pairs(Workspace:GetDescendants()) do
-            if v:IsA("BasePart") and not v.Parent:FindFirstChild("Humanoid") then
-                v.Material = Enum.Material.SmoothPlastic
-                v.Reflectance = 0
-                v.CastShadow = false
-            elseif v:IsA("Decal") or v:IsA("Texture") or v:IsA("ParticleEmitter") then
-                v:Destroy()
+    -- Whitelist: Was darf NICHT gelöscht werden?
+    local keepNames = {
+        [LocalPlayer.Name] = true,
+        ["Camera"] = true,
+        ["FPS_SafePlatform_Persistent"] = true,
+        ["Gameplay"] = true,       -- Coins/Herzen
+        ["DungeonStorage"] = true, -- Dungeons
+        ["Terrain"] = true
+    }
+
+    -- ACTIVE CLEANER LOOP (Löscht alle 5 Sekunden ALLES was neu spawnt)
+    task.spawn(function()
+        while true do
+            if Config.MapWipe then
+                for _, obj in pairs(Workspace:GetChildren()) do
+                    if not keepNames[obj.Name] and not obj:IsA("Camera") and not Players:GetPlayerFromCharacter(obj) then
+                        pcall(function() obj:Destroy() end)
+                    end
+                end
+                if Workspace.Terrain then Workspace.Terrain:Clear() end
             end
-        end
-    end
-    clearTextures()
-    Workspace.DescendantAdded:Connect(function(v)
-        if v:IsA("Decal") or v:IsA("Texture") or v:IsA("ParticleEmitter") then
-            task.wait()
-            v:Destroy()
+            task.wait(5) -- Check alle 5 Sekunden
         end
     end)
 end
 
--- B) MAP WIPE (Extra Funktion)
-if Config.MapWipe then
-    print("🔥 MAP WIPE AKTIVIERT...")
-    
-    -- 1. Plattform bauen
-    local safePlat = Instance.new("Part")
-    safePlat.Name = "FPS_SafePlatform"
-    safePlat.Size = Vector3.new(50, 1, 50)
-    safePlat.Position = eggSpotCoords - Vector3.new(0, 3, 0) 
-    safePlat.Anchored = true
-    safePlat.CanCollide = true
-    safePlat.Transparency = 0.5
-    safePlat.Color = Color3.fromRGB(0, 255, 100)
-    safePlat.Material = Enum.Material.Neon
-    safePlat.Parent = Workspace
-
-    -- 2. Teleport zur Sicherheit
-    local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if hrp then hrp.CFrame = CFrame.new(eggSpotCoords) end
-
-    -- 3. Löschen
-    local keepNames = {
-        [LocalPlayer.Name] = true, ["Camera"] = true, ["FPS_SafePlatform"] = true,
-        ["Gameplay"] = true, ["DungeonStorage"] = true, ["Terrain"] = true
-    }
-    
-    task.wait(1)
-    for _, obj in pairs(Workspace:GetChildren()) do
-        if not keepNames[obj.Name] and not obj:IsA("Camera") and not Players:GetPlayerFromCharacter(obj) then
-            pcall(function() obj:Destroy() end)
-        end
+if Config.BoostFPS and not Config.MapWipe then
+    -- Nur Texturen löschen (Fallback)
+    local lighting = game:GetService("Lighting")
+    lighting.GlobalShadows = false
+    for _, v in pairs(lighting:GetChildren()) do
+        if v:IsA("PostEffect") or v:IsA("BlurEffect") then v:Destroy() end
     end
-    if Workspace.Terrain then Workspace.Terrain:Clear() end
-    print("✅ MAP GELÖSCHT")
+    for _, v in pairs(Workspace:GetDescendants()) do
+        if v:IsA("Decal") or v:IsA("Texture") or v:IsA("ParticleEmitter") then v:Destroy() end
+    end
 end
 
 if Config.WhiteScreen then
     local WScreen = Instance.new("ScreenGui", game.CoreGui)
-    WScreen.Name = "FPSSaver"
     local Frame = Instance.new("Frame", WScreen)
     Frame.Size = UDim2.new(1,0,1,0)
     Frame.BackgroundColor3 = Color3.new(1,1,1)
-    
     game:GetService("UserInputService").InputBegan:Connect(function(input)
         if input.KeyCode == Enum.KeyCode.RightControl then WScreen.Enabled = not WScreen.Enabled end
     end)
@@ -174,65 +155,38 @@ local function CreateStatsHUD()
     if game.CoreGui:FindFirstChild("SaberGodHUD") then return end
     local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
     ScreenGui.Name = "SaberGodHUD"
-
     local MainFrame = Instance.new("Frame", ScreenGui)
     MainFrame.Size = UDim2.new(0, 250, 0, 180) 
     MainFrame.Position = UDim2.new(0.02, 0, 0.3, 0)
     MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-    MainFrame.BorderSizePixel = 2
-    MainFrame.BorderColor3 = Color3.fromRGB(0, 255, 100)
-
-    local Title = Instance.new("TextLabel", MainFrame)
-    Title.Size = UDim2.new(1, 0, 0, 25)
-    Title.BackgroundTransparency = 1
-    Title.Text = "📊 PXNIFY STATS"
-    Title.TextColor3 = Color3.fromRGB(0, 255, 100)
-    Title.Font = Enum.Font.GothamBold
-    Title.TextSize = 16
-
-    local function createLabel(name, pos)
-        local lbl = Instance.new("TextLabel", MainFrame)
-        lbl.Size = UDim2.new(1, -10, 0, 20)
-        lbl.Position = UDim2.new(0, 5, 0, pos)
-        lbl.BackgroundTransparency = 1
-        lbl.TextXAlignment = Enum.TextXAlignment.Left
-        lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
-        lbl.Font = Enum.Font.GothamSemibold
-        lbl.TextSize = 12
-        lbl.Text = name .. ": Loading..."
-        return lbl
+    
+    local labels = {}
+    local function addLabel(text, y)
+        local l = Instance.new("TextLabel", MainFrame)
+        l.Size = UDim2.new(1, -10, 0, 20)
+        l.Position = UDim2.new(0, 5, 0, y)
+        l.BackgroundTransparency = 1
+        l.TextColor3 = Color3.new(1,1,1)
+        l.TextXAlignment = Enum.TextXAlignment.Left
+        l.Text = text
+        return l
     end
-
-    local lblEggs = createLabel("🥚 Total Eggs", 30)
-    local lblSession = createLabel("🔥 Session Hatched", 50)
-    local lblCoins = createLabel("💰 Coins", 70)
-    local lblGems = createLabel("💎 Gems", 90)
-    local lblCrowns = createLabel("👑 Crowns", 110)
-    local lblKills = createLabel("☠️ Kills", 130)
-    local lblTime = createLabel("⏳ AFK Time", 150)
+    
+    labels.eggs = addLabel("🥚 Eggs: 0", 30)
+    labels.session = addLabel("🔥 Session: 0", 50)
+    labels.coins = addLabel("💰 Coins: 0", 70)
+    labels.time = addLabel("⏳ Time: 00:00:00", 150)
 
     task.spawn(function()
-        while task.wait(0.5) do
+        while task.wait(1) do
             pcall(function()
-                local guiPath = LocalPlayer.PlayerGui.MainGui.OtherFrames.Stats.Frame
-                local eggs = guiPath:FindFirstChild("EggsOpened") and guiPath.EggsOpened:FindFirstChild("Amount") and guiPath.EggsOpened.Amount.Text or "0"
-                local coins = guiPath:FindFirstChild("TotalCoins") and guiPath.TotalCoins.Text or "0"
-                local crowns = guiPath:FindFirstChild("TotalCrowns") and guiPath.TotalCrowns.Text or "0"
-                local kills = guiPath:FindFirstChild("TotalKills") and guiPath.TotalKills.Text or "0"
-                local gems = guiPath:FindFirstChild("TotalGems") and guiPath.TotalGems.Text or "0"
-
-                lblEggs.Text = "🥚 Total Eggs: " .. eggs
-                lblSession.Text = "🔥 Session Hatched: " .. sessionEggs
-                lblCoins.Text = "💰 Coins: " .. coins
-                lblGems.Text = "💎 Gems: " .. gems
-                lblCrowns.Text = "👑 Crowns: " .. crowns
-                lblKills.Text = "☠️ Kills: " .. kills
+                local gp = LocalPlayer.PlayerGui.MainGui.OtherFrames.Stats.Frame
+                labels.eggs.Text = "🥚 Total: " .. (gp.EggsOpened.Amount.Text or "0")
+                labels.session.Text = "🔥 Session: " .. sessionEggs
+                labels.coins.Text = "💰 Coins: " .. (gp.TotalCoins.Text or "0")
                 
-                local diff = os.time() - startTime
-                local hours = math.floor(diff / 3600)
-                local minutes = math.floor((diff % 3600) / 60)
-                local seconds = diff % 60
-                lblTime.Text = string.format("⏳ AFK Time: %02d:%02d:%02d", hours, minutes, seconds)
+                local d = os.time() - startTime
+                labels.time.Text = string.format("⏳ %02d:%02d:%02d", math.floor(d/3600), math.floor((d%3600)/60), d%60)
             end)
         end
     end)
@@ -240,10 +194,10 @@ end
 CreateStatsHUD()
 
 -- ==============================================================================
--- 3. LOGIC LOOPS (HATCH, TP 30s, FARM, PICKUP)
+-- 3. LOGIC LOOPS (STRICTLY SEPARATED)
 -- ==============================================================================
 
--- AUTO HATCH (Kaufen)
+-- [A] AUTO HATCH (NUR KAUFEN - KEIN TP)
 task.spawn(function()
     while true do
         if Config.AutoHatch and targetEggName ~= "" then
@@ -252,23 +206,26 @@ task.spawn(function()
                 sessionEggs = sessionEggs + 1
             end)
         end
+        -- Hier passiert der Kauf. KEIN Teleport hier.
         task.wait(Config.HatchDelay or 0.3)
     end
 end)
 
--- AUTO TP (Nur alle 30 Sekunden!)
+-- [B] AUTO TP (NUR ALLE 30 SEKUNDEN)
 task.spawn(function()
     while true do
         if Config.AutoHatch then
             pcall(function()
                 local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
                 if hrp then
+                    -- Einmaliger Teleport
                     hrp.CFrame = eggSpotFrame
                     hrp.Velocity = Vector3.new(0,0,0)
+                    print("🔄 30s Check: Teleport zum Egg Spot")
                 end
             end)
         end
-        -- Hier ist der 30 Sekunden Cooldown
+        -- Hier ist der harte Cooldown. Das Script KANN gar nicht öfter teleportieren.
         task.wait(30)
     end
 end)
@@ -276,11 +233,7 @@ end)
 -- SWING
 task.spawn(function()
     while task.wait(0.1) do
-        if Config.AutoSwing then
-            RS.Events.SwingSaber:FireServer("Slash1")
-            RS.Events.SwingSaber:FireServer("Slash2")
-            RS.Events.SwingSaber:FireServer("Slash3")
-        end
+        if Config.AutoSwing then RS.Events.SwingSaber:FireServer("Slash1") end
     end
 end)
 
@@ -291,7 +244,7 @@ task.spawn(function()
     end
 end)
 
--- PICKUP (HEART TELEPORT)
+-- PICKUP
 local heartsNearPlayer = {}
 local currencyRemote = RS.Events:FindFirstChild("CollectCurrencyPickup")
 local currencyHolder = Workspace.Gameplay:FindFirstChild("CurrencyPickup") and Workspace.Gameplay.CurrencyPickup:FindFirstChild("CurrencyHolder")
@@ -326,7 +279,7 @@ if currencyRemote and currencyHolder then
 end
 
 -- ==============================================================================
--- 4. AUTO BUY & DUNGEON
+-- 4. AUTO BUY & MERCHANT
 -- ==============================================================================
 task.spawn(function()
     while task.wait(0.5) do
@@ -347,56 +300,6 @@ task.spawn(function()
     end
 end)
 
-local function GetDungeonTarget()
-    local dId = LocalPlayer:GetAttribute("DungeonId")
-    if not dId then return nil end
-    local dFolder = Workspace.DungeonStorage:FindFirstChild(tostring(dId))
-    if not dFolder or not dFolder:FindFirstChild("Important") then return nil end
-    local spawners = {"PurpleBossEnemySpawner", "PurpleEnemySpawner", "RedEnemySpawner", "BlueEnemySpawner", "GreenEnemySpawner"}
-    for _, sName in pairs(spawners) do
-        for _, folder in pairs(dFolder.Important:GetChildren()) do
-            if folder.Name == sName then
-                for _, bot in pairs(folder:GetChildren()) do
-                    local hp = bot:GetAttribute("Health") or (bot:FindFirstChild("Humanoid") and bot.Humanoid.Health) or 0
-                    if hp > 0 then return bot.PrimaryPart or bot:FindFirstChild("HumanoidRootPart") end
-                end
-            end
-        end
-    end
-    return nil
-end
-
-task.spawn(function()
-    while task.wait(0.5) do
-        if Config.AutoDungeon then
-            local inDungeon = LocalPlayer:GetAttribute("InDungeon")
-            if not inDungeon then
-                pcall(function()
-                    local Info = require(RS.Modules.DungeonInfo)
-                    local dName = Config.DungeonName
-                    local dDiff = 1 
-                    for i,v in pairs(Info.Difficulties) do if v.Name == Config.Difficulty then dDiff = i end end
-                    if dName == "" then for name, _ in pairs(Info.Dungeons) do dName = name break end end
-                    RS.Events.UIAction:FireServer("DungeonGroupAction", "Create", "Public", dName, dDiff)
-                    task.wait(1)
-                    RS.Events.UIAction:FireServer("DungeonGroupAction", "Start")
-                end)
-            else
-                local target = GetDungeonTarget()
-                if target and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                    local hrp = LocalPlayer.Character.HumanoidRootPart
-                    hrp.CFrame = CFrame.new(target.Position + Vector3.new(0, Config.FarmHeight, 0)) * CFrame.Angles(math.rad(-90), 0, 0)
-                    hrp.Velocity = Vector3.new(0,0,0)
-                    RS.Events.UIAction:FireServer("BuyDungeonUpgrade", "DungeonDamage")
-                end
-            end
-        end
-    end
-end)
-
--- ==============================================================================
--- 5. MERCHANT
--- ==============================================================================
 task.spawn(function()
     while task.wait(3) do
         if Config.AutoMerchant then
@@ -438,4 +341,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ SCRIPT UPDATED: 30S TP + MAP WIPE FUNCTION")
+print("✅ SCRIPT UPDATED: TP ISOLATED & MAP WIPER ACTIVE")
