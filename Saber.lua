@@ -1,20 +1,20 @@
 -- ==============================================================================
--- 👑 SABER GOD MODE - MAIN SCRIPT (FIXED ANTI-AFK)
+-- 👑 SABER GOD MODE - MAIN SCRIPT (FINAL VERSION WITH EGGS)
 -- ==============================================================================
 
--- Fallback, falls Config nicht geladen wurde (Sicherheit)
 if not getgenv().Config then
-    warn("Config nicht gefunden! Lade Standard-Einstellungen...")
+    warn("Config nicht gefunden! Lade Standard...")
     getgenv().Config = {
         BoostFPS = true, WhiteScreen = false, AutoDungeon = false,
         DungeonName = "", Difficulty = "Easy", FarmHeight = 8,
         AutoSwing = true, AutoSell = true, AutoPickup = true, AutoBuy = true,
+        AutoHatch = false, SelectEgg = "Latest", HatchDelay = 0.5,
         Priorities = {Sabers=true, DNA=true, Classes=true, Auras=true, PetAuras=true, BossHits=true},
         AutoMerchant = false, MerchantItems = {}
     }
 end
 
-local Config = getgenv().Config -- Lokale Referenz für Speed
+local Config = getgenv().Config
 
 -- Services
 local Players = game:GetService("Players")
@@ -25,17 +25,14 @@ local VirtualUser = game:GetService("VirtualUser")
 local LocalPlayer = Players.LocalPlayer
 
 local startTime = os.time()
+local sessionEggs = 0 -- Zähler für diese Sitzung
 
 -- ==============================================================================
--- 🛠️ ANTI-AFK FIX (FEHLER BEHOBEN)
+-- 🛠️ ANTI-AFK
 -- ==============================================================================
--- Statt zu klicken, deaktivieren wir einfach den Timer, der dich kickt.
 if getconnections then
-    for _, v in pairs(getconnections(LocalPlayer.Idled)) do
-        v:Disable()
-    end
+    for _, v in pairs(getconnections(LocalPlayer.Idled)) do v:Disable() end
 else
-    -- Fallback für Executors ohne getconnections
     LocalPlayer.Idled:Connect(function()
         pcall(function()
             local vu = game:GetService("VirtualUser")
@@ -45,23 +42,60 @@ else
         end)
     end)
 end
-print("✅ Anti-AFK geladen (Crash-Fix applied)")
 
 -- ==============================================================================
--- 1. OPTIMIERUNG & FPS BOOST
+-- 🥚 EGG SCANNER LOGIC
+-- ==============================================================================
+local targetEggName = ""
+local function ScanForEggs()
+    local EggList = {}
+    local success, PetShopInfo = pcall(function()
+        return require(RS.Modules.PetsInfo:WaitForChild("PetShopInfo", 10))
+    end)
+
+    if success and PetShopInfo then
+        local function scan(t)
+            for k, v in pairs(t) do
+                if type(v) == "table" then
+                    if v.EggName then
+                        if not table.find(EggList, v.EggName) then
+                            table.insert(EggList, v.EggName)
+                        end
+                    else
+                        scan(v)
+                    end
+                end
+            end
+        end
+        scan(PetShopInfo)
+    end
+
+    -- Logik für "Latest"
+    if Config.SelectEgg == "Latest" then
+        if #EggList > 0 then
+            targetEggName = EggList[#EggList] -- Das letzte in der Liste
+            print("🥚 'Latest' ausgewählt: " .. targetEggName)
+        else
+            targetEggName = "Basic Egg" -- Fallback
+        end
+    else
+        targetEggName = Config.SelectEgg
+    end
+end
+ScanForEggs() -- Einmal beim Start ausführen
+
+-- ==============================================================================
+-- 1. OPTIMIERUNG
 -- ==============================================================================
 if Config.BoostFPS then
     local lighting = game:GetService("Lighting")
     lighting.GlobalShadows = false
     lighting.FogEnd = 9e9
     lighting.Brightness = 0
-    
     for _, v in pairs(lighting:GetChildren()) do
-        if v:IsA("PostEffect") or v:IsA("BlurEffect") or v:IsA("SunRaysEffect") then
-            v:Destroy()
-        end
+        if v:IsA("PostEffect") or v:IsA("BlurEffect") or v:IsA("SunRaysEffect") then v:Destroy() end
     end
-
+    
     local function clearTextures()
         for _, v in pairs(Workspace:GetDescendants()) do
             if v:IsA("BasePart") and not v.Parent:FindFirstChild("Humanoid") then
@@ -73,7 +107,6 @@ if Config.BoostFPS then
             end
         end
     end
-    
     clearTextures()
     Workspace.DescendantAdded:Connect(function(v)
         if v:IsA("Decal") or v:IsA("Texture") or v:IsA("ParticleEmitter") then
@@ -81,61 +114,45 @@ if Config.BoostFPS then
             v:Destroy()
         end
     end)
-    
-    if Workspace:FindFirstChildOfClass("Terrain") then
-        Workspace.Terrain.WaterWaveSize = 0
-        Workspace.Terrain.WaterReflectance = 0
-        Workspace.Terrain.WaterTransparency = 0
-    end
 end
 
 if Config.WhiteScreen then
-    local WScreen = Instance.new("ScreenGui")
+    local WScreen = Instance.new("ScreenGui", game.CoreGui)
     WScreen.Name = "FPSSaver"
-    WScreen.Parent = game.CoreGui
-    local Frame = Instance.new("Frame")
+    local Frame = Instance.new("Frame", WScreen)
     Frame.Size = UDim2.new(1,0,1,0)
     Frame.BackgroundColor3 = Color3.new(1,1,1)
-    Frame.Parent = WScreen
     
-    local UIS = game:GetService("UserInputService")
-    UIS.InputBegan:Connect(function(input)
-        if input.KeyCode == Enum.KeyCode.RightControl then
-            WScreen.Enabled = not WScreen.Enabled
-        end
+    game:GetService("UserInputService").InputBegan:Connect(function(input)
+        if input.KeyCode == Enum.KeyCode.RightControl then WScreen.Enabled = not WScreen.Enabled end
     end)
 end
 
 -- ==============================================================================
--- 2. STATS HUD
+-- 2. STATS HUD (INKL. HATCH COUNTER)
 -- ==============================================================================
 local function CreateStatsHUD()
     if game.CoreGui:FindFirstChild("SaberGodHUD") then return end
-
-    local ScreenGui = Instance.new("ScreenGui")
+    local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
     ScreenGui.Name = "SaberGodHUD"
-    ScreenGui.Parent = game.CoreGui
 
-    local MainFrame = Instance.new("Frame")
-    MainFrame.Name = "StatsFrame"
-    MainFrame.Size = UDim2.new(0, 250, 0, 160)
+    local MainFrame = Instance.new("Frame", ScreenGui)
+    MainFrame.Size = UDim2.new(0, 250, 0, 180) -- Etwas größer für Egg Stats
     MainFrame.Position = UDim2.new(0.02, 0, 0.3, 0)
     MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
     MainFrame.BorderSizePixel = 2
     MainFrame.BorderColor3 = Color3.fromRGB(0, 255, 100)
-    MainFrame.Parent = ScreenGui
 
-    local Title = Instance.new("TextLabel")
+    local Title = Instance.new("TextLabel", MainFrame)
     Title.Size = UDim2.new(1, 0, 0, 25)
     Title.BackgroundTransparency = 1
     Title.Text = "📊 PXNIFY STATS"
     Title.TextColor3 = Color3.fromRGB(0, 255, 100)
     Title.Font = Enum.Font.GothamBold
     Title.TextSize = 16
-    Title.Parent = MainFrame
 
     local function createLabel(name, pos)
-        local lbl = Instance.new("TextLabel")
+        local lbl = Instance.new("TextLabel", MainFrame)
         lbl.Size = UDim2.new(1, -10, 0, 20)
         lbl.Position = UDim2.new(0, 5, 0, pos)
         lbl.BackgroundTransparency = 1
@@ -144,16 +161,16 @@ local function CreateStatsHUD()
         lbl.Font = Enum.Font.GothamSemibold
         lbl.TextSize = 12
         lbl.Text = name .. ": Loading..."
-        lbl.Parent = MainFrame
         return lbl
     end
 
-    local lblEggs = createLabel("🥚 Eggs", 30)
-    local lblCoins = createLabel("💰 Coins", 50)
-    local lblGems = createLabel("💎 Gems", 70)
-    local lblCrowns = createLabel("👑 Crowns", 90)
-    local lblKills = createLabel("☠️ Kills", 110)
-    local lblTime = createLabel("⏳ AFK Time", 130)
+    local lblEggs = createLabel("🥚 Total Eggs", 30)
+    local lblSession = createLabel("🔥 Session Hatched", 50) -- Neu
+    local lblCoins = createLabel("💰 Coins", 70)
+    local lblGems = createLabel("💎 Gems", 90)
+    local lblCrowns = createLabel("👑 Crowns", 110)
+    local lblKills = createLabel("☠️ Kills", 130)
+    local lblTime = createLabel("⏳ AFK Time", 150)
 
     task.spawn(function()
         while task.wait(0.5) do
@@ -165,7 +182,8 @@ local function CreateStatsHUD()
                 local kills = guiPath:FindFirstChild("TotalKills") and guiPath.TotalKills.Text or "0"
                 local gems = guiPath:FindFirstChild("TotalGems") and guiPath.TotalGems.Text or "0"
 
-                lblEggs.Text = "🥚 Eggs: " .. eggs
+                lblEggs.Text = "🥚 Total Eggs: " .. eggs
+                lblSession.Text = "🔥 Session Hatched: " .. sessionEggs -- Zeigt an, wie viele du seit Start geöffnet hast
                 lblCoins.Text = "💰 Coins: " .. coins
                 lblGems.Text = "💎 Gems: " .. gems
                 lblCrowns.Text = "👑 Crowns: " .. crowns
@@ -183,8 +201,21 @@ end
 CreateStatsHUD()
 
 -- ==============================================================================
--- 3. FARMING LOOPS (Swing, Sell, Pickup)
+-- 3. FARMING & HATCH LOOPS
 -- ==============================================================================
+
+-- AUTO HATCH LOOP
+task.spawn(function()
+    while true do
+        if Config.AutoHatch and targetEggName ~= "" then
+            pcall(function()
+                RS.Events.UIAction:FireServer("BuyEgg", targetEggName)
+                sessionEggs = sessionEggs + 1
+            end)
+        end
+        task.wait(Config.HatchDelay or 0.3)
+    end
+end)
 
 -- Auto Swing
 task.spawn(function()
@@ -200,73 +231,46 @@ end)
 -- Auto Sell
 task.spawn(function()
     while task.wait(1) do
-        if Config.AutoSell then
-            RS.Events.SellStrength:FireServer()
-        end
+        if Config.AutoSell then RS.Events.SellStrength:FireServer() end
     end
 end)
 
--- ==============================================================================
--- ⚡ NEW AUTO PICKUP SYSTEM (Heart/Currency Instant Teleport)
--- ==============================================================================
+-- NEW PICKUP SYSTEM
 local heartsNearPlayer = {}
 local currencyRemote = RS.Events:FindFirstChild("CollectCurrencyPickup")
 local currencyHolder = Workspace.Gameplay:FindFirstChild("CurrencyPickup") and Workspace.Gameplay.CurrencyPickup:FindFirstChild("CurrencyHolder")
 
 if currencyRemote and currencyHolder then
-    print("✅ Pickup System initialized")
-    
-    -- PHYSICS LOOP (Heartbeat)
     RunService.Heartbeat:Connect(function()
         if not Config.AutoPickup then return end
-        
-        local char = LocalPlayer.Character
-        local root = char and char:FindFirstChild("HumanoidRootPart")
-
+        local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
         if root then
-            -- Liste leeren
             heartsNearPlayer = {} 
-
             for _, item in pairs(currencyHolder:GetChildren()) do
-                -- Filtert nach "Heart" (wie im Script gewünscht)
                 if item.Name == "Heart" then
-                    local part = nil
-                    if item:IsA("BasePart") then
-                        part = item
-                    elseif item:IsA("Model") then
-                        part = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
-                    end
-
+                    local part = item:IsA("BasePart") and item or (item:IsA("Model") and (item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")))
                     if part then
-                        -- Physik manipulieren
                         part.CanCollide = false
                         part.Velocity = Vector3.new(0,0,0)
                         part.RotVelocity = Vector3.new(0,0,0)
-                        part.CFrame = root.CFrame -- Teleport zu Spieler
-                        
+                        part.CFrame = root.CFrame
                         table.insert(heartsNearPlayer, item)
                     end
                 end
             end
         end
     end)
-
-    -- NETWORK LOOP (Firing Event)
     task.spawn(function()
         while task.wait(0.1) do
             if Config.AutoPickup and #heartsNearPlayer > 0 then
-                pcall(function()
-                    currencyRemote:FireServer(heartsNearPlayer)
-                end)
+                pcall(function() currencyRemote:FireServer(heartsNearPlayer) end)
             end
         end
     end)
-else
-    warn("⚠️ Pickup System Warning: Pfade nicht gefunden (CurrencyHolder/Event)")
 end
 
 -- ==============================================================================
--- 4. AUTO BUY & DUNGEON LOGIC
+-- 4. AUTO BUY & DUNGEON
 -- ==============================================================================
 task.spawn(function()
     while task.wait(0.5) do
@@ -315,9 +319,7 @@ task.spawn(function()
                     local Info = require(RS.Modules.DungeonInfo)
                     local dName = Config.DungeonName
                     local dDiff = 1 
-                    for i,v in pairs(Info.Difficulties) do
-                        if v.Name == Config.Difficulty then dDiff = i end
-                    end
+                    for i,v in pairs(Info.Difficulties) do if v.Name == Config.Difficulty then dDiff = i end end
                     if dName == "" then for name, _ in pairs(Info.Dungeons) do dName = name break end end
                     RS.Events.UIAction:FireServer("DungeonGroupAction", "Create", "Public", dName, dDiff)
                     task.wait(1)
@@ -337,7 +339,7 @@ task.spawn(function()
 end)
 
 -- ==============================================================================
--- 5. GHOST MERCHANT (MULTI-TIMESTAMP FIX)
+-- 5. MERCHANT
 -- ==============================================================================
 task.spawn(function()
     while task.wait(3) do
@@ -346,12 +348,10 @@ task.spawn(function()
             if playerGui then
                 local mainGui = playerGui:FindFirstChild("MainGui")
                 local merchantFrame = mainGui and mainGui:FindFirstChild("OtherFrames") and mainGui.OtherFrames:FindFirstChild("EventMerchant")
-
                 if merchantFrame then
                     if not merchantFrame.Visible then merchantFrame.Visible = true end
                     merchantFrame.Position = UDim2.new(10, 0, 10, 0)
                     task.wait(0.5)
-
                     local listingsFolder = merchantFrame:FindFirstChild("Listings")
                     if listingsFolder then
                         for i = 1, 6 do
@@ -365,7 +365,6 @@ task.spawn(function()
                                             local serverTime = workspace:GetServerTimeNow()
                                             local currentTimestamp = math.floor(serverTime / 1800) * 1800
                                             local timesToTry = {currentTimestamp, currentTimestamp - 1800, currentTimestamp + 1800}
-
                                             for _, timeTry in ipairs(timesToTry) do
                                                 local args = {[1] = "EventMerchantBuyItem", [2] = i, [3] = timeTry}
                                                 RS.Events.UIAction:FireServer(unpack(args))
@@ -383,4 +382,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ SABER SCRIPT FIXED (LINE 42 ERROR REMOVED)")
+print("✅ SCRIPT UPDATED: EGG MODULE ACTIVE")
