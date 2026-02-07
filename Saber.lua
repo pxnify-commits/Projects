@@ -1,5 +1,5 @@
 -- ==============================================================================
--- 👑 SABER GOD MODE - MAIN SCRIPT (Updated Pickup)
+-- 👑 SABER GOD MODE - MAIN SCRIPT (FIXED ANTI-AFK)
 -- ==============================================================================
 
 -- Fallback, falls Config nicht geladen wurde (Sicherheit)
@@ -26,11 +26,26 @@ local LocalPlayer = Players.LocalPlayer
 
 local startTime = os.time()
 
--- Anti-AFK
-LocalPlayer.Idled:Connect(function()
-    VirtualUser:CaptureController()
-    VirtualUser:ClickButton2(Vector2.new())
-end)
+-- ==============================================================================
+-- 🛠️ ANTI-AFK FIX (FEHLER BEHOBEN)
+-- ==============================================================================
+-- Statt zu klicken, deaktivieren wir einfach den Timer, der dich kickt.
+if getconnections then
+    for _, v in pairs(getconnections(LocalPlayer.Idled)) do
+        v:Disable()
+    end
+else
+    -- Fallback für Executors ohne getconnections
+    LocalPlayer.Idled:Connect(function()
+        pcall(function()
+            local vu = game:GetService("VirtualUser")
+            vu:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+            task.wait(0.1)
+            vu:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+        end)
+    end)
+end
+print("✅ Anti-AFK geladen (Crash-Fix applied)")
 
 -- ==============================================================================
 -- 1. OPTIMIERUNG & FPS BOOST
@@ -368,4 +383,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ SABER SCRIPT LOADED FROM GITHUB (WITH NEW PICKUP)")
+print("✅ SABER SCRIPT FIXED (LINE 42 ERROR REMOVED)")
