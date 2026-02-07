@@ -1,5 +1,5 @@
 -- ==============================================================================
--- 👑 SABER GOD MODE - MAIN SCRIPT (POSITIONS ADDED)
+-- 👑 SABER GOD MODE - MAIN SCRIPT (PLATFORM & MAP WIPE)
 -- ==============================================================================
 
 if not getgenv().Config then
@@ -26,6 +26,7 @@ local LocalPlayer = Players.LocalPlayer
 
 local startTime = os.time()
 local sessionEggs = 0 
+local eggSpotCoords = Vector3.new(558.31, 184.32, -25.65) -- Deine Koordinaten
 
 -- ==============================================================================
 -- 🛠️ ANTI-AFK
@@ -44,128 +45,115 @@ else
 end
 
 -- ==============================================================================
--- 🥚 EGG SELECTOR (First, Second, Third, Fourth, Latest)
+-- 🥚 EGG SELECTOR
 -- ==============================================================================
 local targetEggName = ""
-
 local function ScanAndSelectEgg()
     local EggList = {}
     print("🔄 Scanne Egg Module...")
-
-    local success, PetShopInfo = pcall(function()
-        return require(RS.Modules.PetsInfo:WaitForChild("PetShopInfo", 10))
-    end)
+    local success, PetShopInfo = pcall(function() return require(RS.Modules.PetsInfo:WaitForChild("PetShopInfo", 10)) end)
 
     if success and PetShopInfo then
         local function scan(t)
             for k, v in pairs(t) do
                 if type(v) == "table" then
                     if v.EggName then
-                        if not table.find(EggList, v.EggName) then
-                            table.insert(EggList, v.EggName)
-                        end
-                    else
-                        scan(v)
-                    end
+                        if not table.find(EggList, v.EggName) then table.insert(EggList, v.EggName) end
+                    else scan(v) end
                 end
             end
         end
         scan(PetShopInfo)
-        
-        -- Liste zur Kontrolle ausgeben
-        -- print("--- EGG LIST ---")
-        -- for i,v in ipairs(EggList) do print(i, v) end
-    else
-        warn("⚠️ Konnte PetShopInfo nicht laden!")
     end
 
-    -- AUSWAHL-LOGIK
     local selection = Config.SelectEgg
-    
     if selection == "Latest" then
-        if #EggList > 0 then
-            targetEggName = EggList[#EggList]
-            print("✅ Modus 'Latest': " .. targetEggName)
-        end
-
+        if #EggList > 0 then targetEggName = EggList[#EggList] end
     elseif selection == "First" then
-        if #EggList >= 1 then
-            targetEggName = EggList[1]
-            print("✅ Modus 'First': " .. targetEggName)
-        end
-
+        if #EggList >= 1 then targetEggName = EggList[1] end
     elseif selection == "Second" then
-        if #EggList >= 2 then
-            targetEggName = EggList[2]
-            print("✅ Modus 'Second': " .. targetEggName)
-        else
-            warn("⚠️ 'Second' nicht verfügbar (Liste zu kurz). Nehme Erstes.")
-            targetEggName = EggList[1]
-        end
-
+        if #EggList >= 2 then targetEggName = EggList[2] else targetEggName = EggList[1] end
     elseif selection == "Third" then
-        if #EggList >= 3 then
-            targetEggName = EggList[3]
-            print("✅ Modus 'Third': " .. targetEggName)
-        else
-            warn("⚠️ 'Third' nicht verfügbar. Nehme Erstes.")
-            targetEggName = EggList[1]
-        end
-
+        if #EggList >= 3 then targetEggName = EggList[3] else targetEggName = EggList[1] end
     elseif selection == "Fourth" then
-        if #EggList >= 4 then
-            targetEggName = EggList[4]
-            print("✅ Modus 'Fourth': " .. targetEggName)
-        else
-            warn("⚠️ 'Fourth' nicht verfügbar. Nehme Erstes.")
-            targetEggName = EggList[1]
-        end
-
+        if #EggList >= 4 then targetEggName = EggList[4] else targetEggName = EggList[1] end
     else
-        -- Benutzerdefinierter Name
-        if table.find(EggList, selection) then
-            targetEggName = selection
-            print("✅ Custom Name: " .. targetEggName)
-        else
-            warn("❌ Ei '" .. selection .. "' nicht gefunden! Nutze Fallback (Latest).")
-            if #EggList > 0 then targetEggName = EggList[#EggList] end
-        end
+        if table.find(EggList, selection) then targetEggName = selection else if #EggList > 0 then targetEggName = EggList[#EggList] end end
     end
+    print("✅ Ziel-Ei: " .. targetEggName)
 end
-
--- Scan beim Start ausführen
 task.spawn(ScanAndSelectEgg)
 
 -- ==============================================================================
--- 1. OPTIMIERUNG
+-- 1. EXTREME OPTIMIERUNG (MAP WIPE + PLATFORM)
 -- ==============================================================================
 if Config.BoostFPS then
+    print("🚀 AKTIVIERE EXTREM-PERFORMANCE MODUS...")
+
+    -- 1. Plattform erstellen (VOR dem Löschen)
+    local safePlat = Instance.new("Part")
+    safePlat.Name = "FPS_SafePlatform"
+    safePlat.Size = Vector3.new(50, 1, 50)
+    -- Wir setzen sie etwas unter deine Koordinaten, damit du darauf stehst
+    safePlat.Position = eggSpotCoords - Vector3.new(0, 3, 0) 
+    safePlat.Anchored = true
+    safePlat.CanCollide = true
+    safePlat.Transparency = 0.5
+    safePlat.Color = Color3.fromRGB(0, 255, 100)
+    safePlat.Material = Enum.Material.Neon
+    safePlat.Parent = Workspace
+
+    -- 2. Spieler zur Plattform teleportieren (Sicherheit)
+    task.spawn(function()
+        local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.CFrame = CFrame.new(eggSpotCoords)
+            task.wait(0.1)
+            hrp.Anchored = true -- Kurz festhalten
+            task.wait(1)
+            hrp.Anchored = false
+        end
+    end)
+
+    -- 3. ALLES ANDERE LÖSCHEN (Map Wipe)
+    -- Wir behalten nur wichtige Ordner für die Logik (Dungeon, Gameplay für Coins)
+    local keepNames = {
+        [LocalPlayer.Name] = true,
+        ["Camera"] = true,
+        ["FPS_SafePlatform"] = true,
+        ["Gameplay"] = true,       -- WICHTIG für Pickup Script
+        ["DungeonStorage"] = true, -- WICHTIG für Dungeons
+        ["Terrain"] = true         -- Terrain kann man oft nicht löschen, nur leeren
+    }
+
+    local function nukeMap()
+        for _, obj in pairs(Workspace:GetChildren()) do
+            if not keepNames[obj.Name] and not obj:IsA("Camera") and not Players:GetPlayerFromCharacter(obj) then
+                pcall(function() obj:Destroy() end)
+            end
+        end
+        
+        -- Terrain leeren (Wasser/Gras weg)
+        if Workspace.Terrain then
+            Workspace.Terrain:Clear()
+        end
+    end
+
+    -- Einmaliges Löschen
+    task.wait(1) -- Kurz warten bis TP durch ist
+    nukeMap()
+    
+    -- Beleuchtung ausschalten
     local lighting = game:GetService("Lighting")
     lighting.GlobalShadows = false
     lighting.FogEnd = 9e9
-    lighting.Brightness = 0
     for _, v in pairs(lighting:GetChildren()) do
-        if v:IsA("PostEffect") or v:IsA("BlurEffect") or v:IsA("SunRaysEffect") then v:Destroy() end
-    end
-    
-    local function clearTextures()
-        for _, v in pairs(Workspace:GetDescendants()) do
-            if v:IsA("BasePart") and not v.Parent:FindFirstChild("Humanoid") then
-                v.Material = Enum.Material.SmoothPlastic
-                v.Reflectance = 0
-                v.CastShadow = false
-            elseif v:IsA("Decal") or v:IsA("Texture") or v:IsA("ParticleEmitter") then
-                v:Destroy()
-            end
-        end
-    end
-    clearTextures()
-    Workspace.DescendantAdded:Connect(function(v)
-        if v:IsA("Decal") or v:IsA("Texture") or v:IsA("ParticleEmitter") then
-            task.wait()
+        if v:IsA("PostEffect") or v:IsA("BlurEffect") or v:IsA("SunRaysEffect") or v:IsA("Sky") or v:IsA("Atmosphere") then
             v:Destroy()
         end
-    end)
+    end
+
+    print("✅ MAP GELÖSCHT - MAX FPS AKTIV")
 end
 
 if Config.WhiteScreen then
@@ -253,14 +241,25 @@ end
 CreateStatsHUD()
 
 -- ==============================================================================
--- 3. LOGIC LOOPS
+-- 3. LOGIC LOOPS (HATCH + TP, FARM, PICKUP)
 -- ==============================================================================
 
--- AUTO HATCH
+-- Deine Koordinaten (als CFrame für Rotation)
+local eggSpotFrame = CFrame.new(558.311035, 184.320892, -25.6451225, -0.659114897, 3.71071751e-09, -0.752042234, -6.06633819e-08, 1, 5.81015982e-08, 0.752042234, 8.39170511e-08, -0.659114897)
+
+-- AUTO HATCH MIT TELEPORT
 task.spawn(function()
     while true do
         if Config.AutoHatch and targetEggName ~= "" then
             pcall(function()
+                -- TELEPORT ZUM EGG SPOT
+                local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    hrp.CFrame = eggSpotFrame
+                    hrp.Velocity = Vector3.new(0,0,0) -- Stop movement
+                end
+                
+                -- EGG KAUFEN
                 RS.Events.UIAction:FireServer("BuyEgg", targetEggName)
                 sessionEggs = sessionEggs + 1
             end)
@@ -287,7 +286,7 @@ task.spawn(function()
     end
 end)
 
--- PICKUP
+-- PICKUP (HEART TELEPORT)
 local heartsNearPlayer = {}
 local currencyRemote = RS.Events:FindFirstChild("CollectCurrencyPickup")
 local currencyHolder = Workspace.Gameplay:FindFirstChild("CurrencyPickup") and Workspace.Gameplay.CurrencyPickup:FindFirstChild("CurrencyHolder")
@@ -434,4 +433,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ SCRIPT UPDATED: POSITIONS ADDED (First, Second, etc.)")
+print("✅ SCRIPT UPDATED: PLATFORM + MAP WIPE")
