@@ -1,5 +1,5 @@
 -- ==============================================================================
--- 👑 SABER GOD MODE - MAIN SCRIPT (FINAL VERSION WITH EGGS)
+-- 👑 SABER GOD MODE - MAIN SCRIPT (POSITIONS ADDED)
 -- ==============================================================================
 
 if not getgenv().Config then
@@ -25,7 +25,7 @@ local VirtualUser = game:GetService("VirtualUser")
 local LocalPlayer = Players.LocalPlayer
 
 local startTime = os.time()
-local sessionEggs = 0 -- Zähler für diese Sitzung
+local sessionEggs = 0 
 
 -- ==============================================================================
 -- 🛠️ ANTI-AFK
@@ -44,11 +44,14 @@ else
 end
 
 -- ==============================================================================
--- 🥚 EGG SCANNER LOGIC
+-- 🥚 EGG SELECTOR (First, Second, Third, Fourth, Latest)
 -- ==============================================================================
 local targetEggName = ""
-local function ScanForEggs()
+
+local function ScanAndSelectEgg()
     local EggList = {}
+    print("🔄 Scanne Egg Module...")
+
     local success, PetShopInfo = pcall(function()
         return require(RS.Modules.PetsInfo:WaitForChild("PetShopInfo", 10))
     end)
@@ -68,21 +71,70 @@ local function ScanForEggs()
             end
         end
         scan(PetShopInfo)
+        
+        -- Liste zur Kontrolle ausgeben
+        -- print("--- EGG LIST ---")
+        -- for i,v in ipairs(EggList) do print(i, v) end
+    else
+        warn("⚠️ Konnte PetShopInfo nicht laden!")
     end
 
-    -- Logik für "Latest"
-    if Config.SelectEgg == "Latest" then
+    -- AUSWAHL-LOGIK
+    local selection = Config.SelectEgg
+    
+    if selection == "Latest" then
         if #EggList > 0 then
-            targetEggName = EggList[#EggList] -- Das letzte in der Liste
-            print("🥚 'Latest' ausgewählt: " .. targetEggName)
-        else
-            targetEggName = "Basic Egg" -- Fallback
+            targetEggName = EggList[#EggList]
+            print("✅ Modus 'Latest': " .. targetEggName)
         end
+
+    elseif selection == "First" then
+        if #EggList >= 1 then
+            targetEggName = EggList[1]
+            print("✅ Modus 'First': " .. targetEggName)
+        end
+
+    elseif selection == "Second" then
+        if #EggList >= 2 then
+            targetEggName = EggList[2]
+            print("✅ Modus 'Second': " .. targetEggName)
+        else
+            warn("⚠️ 'Second' nicht verfügbar (Liste zu kurz). Nehme Erstes.")
+            targetEggName = EggList[1]
+        end
+
+    elseif selection == "Third" then
+        if #EggList >= 3 then
+            targetEggName = EggList[3]
+            print("✅ Modus 'Third': " .. targetEggName)
+        else
+            warn("⚠️ 'Third' nicht verfügbar. Nehme Erstes.")
+            targetEggName = EggList[1]
+        end
+
+    elseif selection == "Fourth" then
+        if #EggList >= 4 then
+            targetEggName = EggList[4]
+            print("✅ Modus 'Fourth': " .. targetEggName)
+        else
+            warn("⚠️ 'Fourth' nicht verfügbar. Nehme Erstes.")
+            targetEggName = EggList[1]
+        end
+
     else
-        targetEggName = Config.SelectEgg
+        -- Benutzerdefinierter Name
+        if table.find(EggList, selection) then
+            targetEggName = selection
+            print("✅ Custom Name: " .. targetEggName)
+        else
+            warn("❌ Ei '" .. selection .. "' nicht gefunden! Nutze Fallback (Latest).")
+            if #EggList > 0 then targetEggName = EggList[#EggList] end
+        end
     end
 end
-ScanForEggs() -- Einmal beim Start ausführen
+
+-- Scan beim Start ausführen
+task.spawn(ScanAndSelectEgg)
 
 -- ==============================================================================
 -- 1. OPTIMIERUNG
@@ -129,7 +181,7 @@ if Config.WhiteScreen then
 end
 
 -- ==============================================================================
--- 2. STATS HUD (INKL. HATCH COUNTER)
+-- 2. STATS HUD
 -- ==============================================================================
 local function CreateStatsHUD()
     if game.CoreGui:FindFirstChild("SaberGodHUD") then return end
@@ -137,7 +189,7 @@ local function CreateStatsHUD()
     ScreenGui.Name = "SaberGodHUD"
 
     local MainFrame = Instance.new("Frame", ScreenGui)
-    MainFrame.Size = UDim2.new(0, 250, 0, 180) -- Etwas größer für Egg Stats
+    MainFrame.Size = UDim2.new(0, 250, 0, 180) 
     MainFrame.Position = UDim2.new(0.02, 0, 0.3, 0)
     MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
     MainFrame.BorderSizePixel = 2
@@ -165,7 +217,7 @@ local function CreateStatsHUD()
     end
 
     local lblEggs = createLabel("🥚 Total Eggs", 30)
-    local lblSession = createLabel("🔥 Session Hatched", 50) -- Neu
+    local lblSession = createLabel("🔥 Session Hatched", 50)
     local lblCoins = createLabel("💰 Coins", 70)
     local lblGems = createLabel("💎 Gems", 90)
     local lblCrowns = createLabel("👑 Crowns", 110)
@@ -183,7 +235,7 @@ local function CreateStatsHUD()
                 local gems = guiPath:FindFirstChild("TotalGems") and guiPath.TotalGems.Text or "0"
 
                 lblEggs.Text = "🥚 Total Eggs: " .. eggs
-                lblSession.Text = "🔥 Session Hatched: " .. sessionEggs -- Zeigt an, wie viele du seit Start geöffnet hast
+                lblSession.Text = "🔥 Session Hatched: " .. sessionEggs
                 lblCoins.Text = "💰 Coins: " .. coins
                 lblGems.Text = "💎 Gems: " .. gems
                 lblCrowns.Text = "👑 Crowns: " .. crowns
@@ -201,10 +253,10 @@ end
 CreateStatsHUD()
 
 -- ==============================================================================
--- 3. FARMING & HATCH LOOPS
+-- 3. LOGIC LOOPS
 -- ==============================================================================
 
--- AUTO HATCH LOOP
+-- AUTO HATCH
 task.spawn(function()
     while true do
         if Config.AutoHatch and targetEggName ~= "" then
@@ -217,7 +269,7 @@ task.spawn(function()
     end
 end)
 
--- Auto Swing
+-- SWING
 task.spawn(function()
     while task.wait(0.1) do
         if Config.AutoSwing then
@@ -228,14 +280,14 @@ task.spawn(function()
     end
 end)
 
--- Auto Sell
+-- SELL
 task.spawn(function()
     while task.wait(1) do
         if Config.AutoSell then RS.Events.SellStrength:FireServer() end
     end
 end)
 
--- NEW PICKUP SYSTEM
+-- PICKUP
 local heartsNearPlayer = {}
 local currencyRemote = RS.Events:FindFirstChild("CollectCurrencyPickup")
 local currencyHolder = Workspace.Gameplay:FindFirstChild("CurrencyPickup") and Workspace.Gameplay.CurrencyPickup:FindFirstChild("CurrencyHolder")
@@ -382,4 +434,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ SCRIPT UPDATED: EGG MODULE ACTIVE")
+print("✅ SCRIPT UPDATED: POSITIONS ADDED (First, Second, etc.)")
