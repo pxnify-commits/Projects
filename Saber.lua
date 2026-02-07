@@ -1,11 +1,11 @@
 -- ==============================================================================
--- 👑 SABER GOD MODE - MAIN SCRIPT (PLATFORM & MAP WIPE)
+-- 👑 SABER GOD MODE - MAIN SCRIPT (SEPARATE FUNCTIONS)
 -- ==============================================================================
 
 if not getgenv().Config then
     warn("Config nicht gefunden! Lade Standard...")
     getgenv().Config = {
-        BoostFPS = true, WhiteScreen = false, AutoDungeon = false,
+        BoostFPS = true, MapWipe = false, WhiteScreen = false, AutoDungeon = false,
         DungeonName = "", Difficulty = "Easy", FarmHeight = 8,
         AutoSwing = true, AutoSell = true, AutoPickup = true, AutoBuy = true,
         AutoHatch = false, SelectEgg = "Latest", HatchDelay = 0.5,
@@ -26,7 +26,8 @@ local LocalPlayer = Players.LocalPlayer
 
 local startTime = os.time()
 local sessionEggs = 0 
-local eggSpotCoords = Vector3.new(558.31, 184.32, -25.65) -- Deine Koordinaten
+local eggSpotCoords = Vector3.new(558.31, 184.32, -25.65)
+local eggSpotFrame = CFrame.new(558.311035, 184.320892, -25.6451225, -0.659114897, 3.71071751e-09, -0.752042234, -6.06633819e-08, 1, 5.81015982e-08, 0.752042234, 8.39170511e-08, -0.659114897)
 
 -- ==============================================================================
 -- 🛠️ ANTI-AFK
@@ -85,16 +86,47 @@ end
 task.spawn(ScanAndSelectEgg)
 
 -- ==============================================================================
--- 1. EXTREME OPTIMIERUNG (MAP WIPE + PLATFORM)
+-- 1. OPTIMIERUNG (FPS & MAP WIPE GETRENNT)
 -- ==============================================================================
-if Config.BoostFPS then
-    print("🚀 AKTIVIERE EXTREM-PERFORMANCE MODUS...")
 
-    -- 1. Plattform erstellen (VOR dem Löschen)
+-- A) TEXTUREN & LICHT (BoostFPS)
+if Config.BoostFPS then
+    local lighting = game:GetService("Lighting")
+    lighting.GlobalShadows = false
+    lighting.FogEnd = 9e9
+    lighting.Brightness = 0
+    for _, v in pairs(lighting:GetChildren()) do
+        if v:IsA("PostEffect") or v:IsA("BlurEffect") or v:IsA("SunRaysEffect") then v:Destroy() end
+    end
+    
+    local function clearTextures()
+        for _, v in pairs(Workspace:GetDescendants()) do
+            if v:IsA("BasePart") and not v.Parent:FindFirstChild("Humanoid") then
+                v.Material = Enum.Material.SmoothPlastic
+                v.Reflectance = 0
+                v.CastShadow = false
+            elseif v:IsA("Decal") or v:IsA("Texture") or v:IsA("ParticleEmitter") then
+                v:Destroy()
+            end
+        end
+    end
+    clearTextures()
+    Workspace.DescendantAdded:Connect(function(v)
+        if v:IsA("Decal") or v:IsA("Texture") or v:IsA("ParticleEmitter") then
+            task.wait()
+            v:Destroy()
+        end
+    end)
+end
+
+-- B) MAP WIPE (Extra Funktion)
+if Config.MapWipe then
+    print("🔥 MAP WIPE AKTIVIERT...")
+    
+    -- 1. Plattform bauen
     local safePlat = Instance.new("Part")
     safePlat.Name = "FPS_SafePlatform"
     safePlat.Size = Vector3.new(50, 1, 50)
-    -- Wir setzen sie etwas unter deine Koordinaten, damit du darauf stehst
     safePlat.Position = eggSpotCoords - Vector3.new(0, 3, 0) 
     safePlat.Anchored = true
     safePlat.CanCollide = true
@@ -103,57 +135,24 @@ if Config.BoostFPS then
     safePlat.Material = Enum.Material.Neon
     safePlat.Parent = Workspace
 
-    -- 2. Spieler zur Plattform teleportieren (Sicherheit)
-    task.spawn(function()
-        local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            hrp.CFrame = CFrame.new(eggSpotCoords)
-            task.wait(0.1)
-            hrp.Anchored = true -- Kurz festhalten
-            task.wait(1)
-            hrp.Anchored = false
-        end
-    end)
+    -- 2. Teleport zur Sicherheit
+    local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if hrp then hrp.CFrame = CFrame.new(eggSpotCoords) end
 
-    -- 3. ALLES ANDERE LÖSCHEN (Map Wipe)
-    -- Wir behalten nur wichtige Ordner für die Logik (Dungeon, Gameplay für Coins)
+    -- 3. Löschen
     local keepNames = {
-        [LocalPlayer.Name] = true,
-        ["Camera"] = true,
-        ["FPS_SafePlatform"] = true,
-        ["Gameplay"] = true,       -- WICHTIG für Pickup Script
-        ["DungeonStorage"] = true, -- WICHTIG für Dungeons
-        ["Terrain"] = true         -- Terrain kann man oft nicht löschen, nur leeren
+        [LocalPlayer.Name] = true, ["Camera"] = true, ["FPS_SafePlatform"] = true,
+        ["Gameplay"] = true, ["DungeonStorage"] = true, ["Terrain"] = true
     }
-
-    local function nukeMap()
-        for _, obj in pairs(Workspace:GetChildren()) do
-            if not keepNames[obj.Name] and not obj:IsA("Camera") and not Players:GetPlayerFromCharacter(obj) then
-                pcall(function() obj:Destroy() end)
-            end
-        end
-        
-        -- Terrain leeren (Wasser/Gras weg)
-        if Workspace.Terrain then
-            Workspace.Terrain:Clear()
-        end
-    end
-
-    -- Einmaliges Löschen
-    task.wait(1) -- Kurz warten bis TP durch ist
-    nukeMap()
     
-    -- Beleuchtung ausschalten
-    local lighting = game:GetService("Lighting")
-    lighting.GlobalShadows = false
-    lighting.FogEnd = 9e9
-    for _, v in pairs(lighting:GetChildren()) do
-        if v:IsA("PostEffect") or v:IsA("BlurEffect") or v:IsA("SunRaysEffect") or v:IsA("Sky") or v:IsA("Atmosphere") then
-            v:Destroy()
+    task.wait(1)
+    for _, obj in pairs(Workspace:GetChildren()) do
+        if not keepNames[obj.Name] and not obj:IsA("Camera") and not Players:GetPlayerFromCharacter(obj) then
+            pcall(function() obj:Destroy() end)
         end
     end
-
-    print("✅ MAP GELÖSCHT - MAX FPS AKTIV")
+    if Workspace.Terrain then Workspace.Terrain:Clear() end
+    print("✅ MAP GELÖSCHT")
 end
 
 if Config.WhiteScreen then
@@ -241,30 +240,36 @@ end
 CreateStatsHUD()
 
 -- ==============================================================================
--- 3. LOGIC LOOPS (HATCH + TP, FARM, PICKUP)
+-- 3. LOGIC LOOPS (HATCH, TP 30s, FARM, PICKUP)
 -- ==============================================================================
 
--- Deine Koordinaten (als CFrame für Rotation)
-local eggSpotFrame = CFrame.new(558.311035, 184.320892, -25.6451225, -0.659114897, 3.71071751e-09, -0.752042234, -6.06633819e-08, 1, 5.81015982e-08, 0.752042234, 8.39170511e-08, -0.659114897)
-
--- AUTO HATCH MIT TELEPORT
+-- AUTO HATCH (Kaufen)
 task.spawn(function()
     while true do
         if Config.AutoHatch and targetEggName ~= "" then
             pcall(function()
-                -- TELEPORT ZUM EGG SPOT
-                local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    hrp.CFrame = eggSpotFrame
-                    hrp.Velocity = Vector3.new(0,0,0) -- Stop movement
-                end
-                
-                -- EGG KAUFEN
                 RS.Events.UIAction:FireServer("BuyEgg", targetEggName)
                 sessionEggs = sessionEggs + 1
             end)
         end
         task.wait(Config.HatchDelay or 0.3)
+    end
+end)
+
+-- AUTO TP (Nur alle 30 Sekunden!)
+task.spawn(function()
+    while true do
+        if Config.AutoHatch then
+            pcall(function()
+                local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    hrp.CFrame = eggSpotFrame
+                    hrp.Velocity = Vector3.new(0,0,0)
+                end
+            end)
+        end
+        -- Hier ist der 30 Sekunden Cooldown
+        task.wait(30)
     end
 end)
 
@@ -433,4 +438,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ SCRIPT UPDATED: PLATFORM + MAP WIPE")
+print("✅ SCRIPT UPDATED: 30S TP + MAP WIPE FUNCTION")
