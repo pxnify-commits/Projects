@@ -1,5 +1,5 @@
 -- ==============================================================================
--- 👑 SABER GOD MODE - MAIN SCRIPT (REJOIN REQUIRED FOR FIX)
+-- 👑 SABER GOD MODE - MAIN SCRIPT (DUNGEON FARM FIX)
 -- ==============================================================================
 
 if not getgenv().Config then
@@ -26,8 +26,7 @@ local LocalPlayer = Players.LocalPlayer
 
 local startTime = os.time()
 local sessionEggs = 0 
--- Deine Koordinaten:
-local eggSpotFrame = CFrame.new(558.31, 184.32, -25.65) 
+local eggSpotFrame = CFrame.new(558.311035, 184.320892, -25.6451225, -0.659114897, 3.71071751e-09, -0.752042234, -6.06633819e-08, 1, 5.81015982e-08, 0.752042234, 8.39170511e-08, -0.659114897)
 local eggSpotVector = Vector3.new(558.31, 184.32, -25.65)
 
 -- ==============================================================================
@@ -53,7 +52,6 @@ local targetEggName = ""
 local function ScanAndSelectEgg()
     local EggList = {}
     local success, PetShopInfo = pcall(function() return require(RS.Modules.PetsInfo:WaitForChild("PetShopInfo", 10)) end)
-
     if success and PetShopInfo then
         local function scan(t)
             for k, v in pairs(t) do
@@ -66,76 +64,47 @@ local function ScanAndSelectEgg()
         end
         scan(PetShopInfo)
     end
-
     local selection = Config.SelectEgg
-    if selection == "Latest" then
-        if #EggList > 0 then targetEggName = EggList[#EggList] end
-    elseif selection == "First" then
-        if #EggList >= 1 then targetEggName = EggList[1] end
-    elseif selection == "Second" then
-        if #EggList >= 2 then targetEggName = EggList[2] else targetEggName = EggList[1] end
-    elseif selection == "Third" then
-        if #EggList >= 3 then targetEggName = EggList[3] else targetEggName = EggList[1] end
-    elseif selection == "Fourth" then
-        if #EggList >= 4 then targetEggName = EggList[4] else targetEggName = EggList[1] end
-    else
-        if table.find(EggList, selection) then targetEggName = selection else if #EggList > 0 then targetEggName = EggList[#EggList] end end
-    end
+    if selection == "Latest" then if #EggList > 0 then targetEggName = EggList[#EggList] end
+    elseif selection == "First" then if #EggList >= 1 then targetEggName = EggList[1] end
+    elseif selection == "Second" then if #EggList >= 2 then targetEggName = EggList[2] else targetEggName = EggList[1] end
+    elseif selection == "Third" then if #EggList >= 3 then targetEggName = EggList[3] else targetEggName = EggList[1] end
+    elseif selection == "Fourth" then if #EggList >= 4 then targetEggName = EggList[4] else targetEggName = EggList[1] end
+    else if table.find(EggList, selection) then targetEggName = selection else if #EggList > 0 then targetEggName = EggList[#EggList] end end end
     print("✅ Ziel-Ei: " .. targetEggName)
 end
 task.spawn(ScanAndSelectEgg)
 
 -- ==============================================================================
--- 1. AGGRESSIVE MAP WIPE & PLATFORM
+-- 1. OPTIMIERUNG
 -- ==============================================================================
 if Config.MapWipe then
-    -- Plattform erstellen (bleibt für immer da)
-    local safePlat = Instance.new("Part")
+    local safePlat = Instance.new("Part", Workspace)
     safePlat.Name = "FPS_SafePlatform_Persistent"
     safePlat.Size = Vector3.new(50, 1, 50)
     safePlat.Position = eggSpotVector - Vector3.new(0, 3, 0)
-    safePlat.Anchored = true
-    safePlat.CanCollide = true
-    safePlat.Material = Enum.Material.ForceField
-    safePlat.Color = Color3.new(0,0,0)
-    safePlat.Parent = Workspace
+    safePlat.Anchored = true; safePlat.CanCollide = true; safePlat.Material = Enum.Material.ForceField
 
-    -- Whitelist: Was darf NICHT gelöscht werden?
-    local keepNames = {
-        [LocalPlayer.Name] = true,
-        ["Camera"] = true,
-        ["FPS_SafePlatform_Persistent"] = true,
-        ["Gameplay"] = true,       -- Coins/Herzen
-        ["DungeonStorage"] = true, -- Dungeons
-        ["Terrain"] = true
-    }
-
-    -- ACTIVE CLEANER LOOP (Löscht alle 5 Sekunden ALLES was neu spawnt)
+    local keepNames = {[LocalPlayer.Name]=true, ["Camera"]=true, ["FPS_SafePlatform_Persistent"]=true, ["Gameplay"]=true, ["DungeonStorage"]=true, ["Terrain"]=true}
+    
     task.spawn(function()
         while true do
             if Config.MapWipe then
                 for _, obj in pairs(Workspace:GetChildren()) do
-                    if not keepNames[obj.Name] and not obj:IsA("Camera") and not Players:GetPlayerFromCharacter(obj) then
-                        pcall(function() obj:Destroy() end)
-                    end
+                    if not keepNames[obj.Name] and not obj:IsA("Camera") and not Players:GetPlayerFromCharacter(obj) then pcall(function() obj:Destroy() end) end
                 end
                 if Workspace.Terrain then Workspace.Terrain:Clear() end
             end
-            task.wait(5) -- Check alle 5 Sekunden
+            task.wait(5)
         end
     end)
 end
 
 if Config.BoostFPS and not Config.MapWipe then
-    -- Nur Texturen löschen (Fallback)
     local lighting = game:GetService("Lighting")
     lighting.GlobalShadows = false
-    for _, v in pairs(lighting:GetChildren()) do
-        if v:IsA("PostEffect") or v:IsA("BlurEffect") then v:Destroy() end
-    end
-    for _, v in pairs(Workspace:GetDescendants()) do
-        if v:IsA("Decal") or v:IsA("Texture") or v:IsA("ParticleEmitter") then v:Destroy() end
-    end
+    for _, v in pairs(lighting:GetChildren()) do if v:IsA("PostEffect") or v:IsA("BlurEffect") then v:Destroy() end end
+    for _, v in pairs(Workspace:GetDescendants()) do if v:IsA("Decal") or v:IsA("Texture") or v:IsA("ParticleEmitter") then v:Destroy() end end
 end
 
 if Config.WhiteScreen then
@@ -149,7 +118,7 @@ if Config.WhiteScreen then
 end
 
 -- ==============================================================================
--- 2. STATS HUD
+-- 2. STATS HUD (FIXED PATHS)
 -- ==============================================================================
 local function CreateStatsHUD()
     if game.CoreGui:FindFirstChild("SaberGodHUD") then return end
@@ -178,12 +147,18 @@ local function CreateStatsHUD()
     labels.time = addLabel("⏳ Time: 00:00:00", 150)
 
     task.spawn(function()
-        while task.wait(1) do
+        while task.wait(0.5) do
             pcall(function()
-                local gp = LocalPlayer.PlayerGui.MainGui.OtherFrames.Stats.Frame
-                labels.eggs.Text = "🥚 Total: " .. (gp.EggsOpened.Amount.Text or "0")
+                -- PATH FIX: Wir greifen exakt auf die Struktur zu
+                local gui = LocalPlayer.PlayerGui.MainGui.OtherFrames.Stats.Frame
+                
+                -- Sicherer Zugriff mit Strings für Zahlen
+                local eggTxt = (gui:FindFirstChild("EggsOpened") and gui.EggsOpened:FindFirstChild("Amount") and gui.EggsOpened.Amount.Text) or "0"
+                local coinTxt = (gui:FindFirstChild("TotalCoins") and gui.TotalCoins.Text) or "0"
+                
+                labels.eggs.Text = "🥚 Total: " .. eggTxt
                 labels.session.Text = "🔥 Session: " .. sessionEggs
-                labels.coins.Text = "💰 Coins: " .. (gp.TotalCoins.Text or "0")
+                labels.coins.Text = "💰 Coins: " .. coinTxt
                 
                 local d = os.time() - startTime
                 labels.time.Text = string.format("⏳ %02d:%02d:%02d", math.floor(d/3600), math.floor((d%3600)/60), d%60)
@@ -194,10 +169,90 @@ end
 CreateStatsHUD()
 
 -- ==============================================================================
--- 3. LOGIC LOOPS (STRICTLY SEPARATED)
+-- 3. DUNGEON FARMING (RENDERSTEPPED FIX)
 -- ==============================================================================
 
--- [A] AUTO HATCH (NUR KAUFEN - KEIN TP)
+-- Hilfsfunktion: Gegner finden
+local function GetDungeonTarget()
+    local dId = LocalPlayer:GetAttribute("DungeonId")
+    if not dId then return nil end
+    
+    local dFolder = Workspace.DungeonStorage:FindFirstChild(tostring(dId))
+    if not dFolder or not dFolder:FindFirstChild("Important") then return nil end
+    
+    -- Suchreihenfolge (Bosse zuerst!)
+    local spawners = {
+        "PurpleBossEnemySpawner", 
+        "RedEnemySpawner", 
+        "BlueEnemySpawner", 
+        "GreenEnemySpawner",
+        "PurpleEnemySpawner"
+    }
+    
+    for _, sName in pairs(spawners) do
+        for _, folder in pairs(dFolder.Important:GetChildren()) do
+            if folder.Name == sName then
+                for _, bot in pairs(folder:GetChildren()) do
+                    -- Prüfen ob Gegner lebt (HP > 0)
+                    local hp = bot:GetAttribute("Health") or (bot:FindFirstChild("Humanoid") and bot.Humanoid.Health) or 0
+                    if hp > 0 then
+                        return bot.PrimaryPart or bot:FindFirstChild("HumanoidRootPart")
+                    end
+                end
+            end
+        end
+    end
+    return nil
+end
+
+-- DUNGEON JOINER (Langsame Schleife)
+task.spawn(function()
+    while task.wait(1) do
+        if Config.AutoDungeon then
+            local inDungeon = LocalPlayer:GetAttribute("InDungeon")
+            if not inDungeon then
+                -- Joinen wenn nicht drin
+                pcall(function()
+                    local Info = require(RS.Modules.DungeonInfo)
+                    local dName = Config.DungeonName
+                    local dDiff = 1 
+                    for i,v in pairs(Info.Difficulties) do if v.Name == Config.Difficulty then dDiff = i end end
+                    if dName == "" then for name, _ in pairs(Info.Dungeons) do dName = name break end end
+                    
+                    RS.Events.UIAction:FireServer("DungeonGroupAction", "Create", "Public", dName, dDiff)
+                    task.wait(0.5)
+                    RS.Events.UIAction:FireServer("DungeonGroupAction", "Start")
+                end)
+            end
+        end
+    end
+end)
+
+-- DUNGEON FARMER (Schnelle Schleife - RenderStepped)
+RunService.RenderStepped:Connect(function()
+    if Config.AutoDungeon then
+        local inDungeon = LocalPlayer:GetAttribute("InDungeon")
+        if inDungeon then
+            local target = GetDungeonTarget()
+            local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            
+            if target and hrp then
+                -- TELEPORT ZUM GEGNER (FARMING)
+                -- Wir setzen uns über den Gegner und rotieren um 90 Grad (für bessere Hits)
+                hrp.CFrame = CFrame.new(target.Position + Vector3.new(0, Config.FarmHeight, 0)) * CFrame.Angles(math.rad(-90), 0, 0)
+                hrp.Velocity = Vector3.new(0,0,0) -- Keine Physik
+                
+                -- Attackieren & Upgraden
+                RS.Events.UIAction:FireServer("BuyDungeonUpgrade", "DungeonDamage")
+            end
+        end
+    end
+end)
+
+-- ==============================================================================
+-- 4. HATCHING & FARMING
+-- ==============================================================================
+
 task.spawn(function()
     while true do
         if Config.AutoHatch and targetEggName ~= "" then
@@ -206,38 +261,28 @@ task.spawn(function()
                 sessionEggs = sessionEggs + 1
             end)
         end
-        -- Hier passiert der Kauf. KEIN Teleport hier.
         task.wait(Config.HatchDelay or 0.3)
     end
 end)
 
--- [B] AUTO TP (NUR ALLE 30 SEKUNDEN)
 task.spawn(function()
     while true do
         if Config.AutoHatch then
             pcall(function()
                 local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    -- Einmaliger Teleport
-                    hrp.CFrame = eggSpotFrame
-                    hrp.Velocity = Vector3.new(0,0,0)
-                    print("🔄 30s Check: Teleport zum Egg Spot")
-                end
+                if hrp then hrp.CFrame = eggSpotFrame; hrp.Velocity = Vector3.new(0,0,0) end
             end)
         end
-        -- Hier ist der harte Cooldown. Das Script KANN gar nicht öfter teleportieren.
         task.wait(30)
     end
 end)
 
--- SWING
 task.spawn(function()
     while task.wait(0.1) do
         if Config.AutoSwing then RS.Events.SwingSaber:FireServer("Slash1") end
     end
 end)
 
--- SELL
 task.spawn(function()
     while task.wait(1) do
         if Config.AutoSell then RS.Events.SellStrength:FireServer() end
@@ -248,7 +293,6 @@ end)
 local heartsNearPlayer = {}
 local currencyRemote = RS.Events:FindFirstChild("CollectCurrencyPickup")
 local currencyHolder = Workspace.Gameplay:FindFirstChild("CurrencyPickup") and Workspace.Gameplay.CurrencyPickup:FindFirstChild("CurrencyHolder")
-
 if currencyRemote and currencyHolder then
     RunService.Heartbeat:Connect(function()
         if not Config.AutoPickup then return end
@@ -258,28 +302,20 @@ if currencyRemote and currencyHolder then
             for _, item in pairs(currencyHolder:GetChildren()) do
                 if item.Name == "Heart" then
                     local part = item:IsA("BasePart") and item or (item:IsA("Model") and (item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")))
-                    if part then
-                        part.CanCollide = false
-                        part.Velocity = Vector3.new(0,0,0)
-                        part.RotVelocity = Vector3.new(0,0,0)
-                        part.CFrame = root.CFrame
-                        table.insert(heartsNearPlayer, item)
-                    end
+                    if part then part.CanCollide = false; part.Velocity = Vector3.new(0,0,0); part.CFrame = root.CFrame; table.insert(heartsNearPlayer, item) end
                 end
             end
         end
     end)
     task.spawn(function()
         while task.wait(0.1) do
-            if Config.AutoPickup and #heartsNearPlayer > 0 then
-                pcall(function() currencyRemote:FireServer(heartsNearPlayer) end)
-            end
+            if Config.AutoPickup and #heartsNearPlayer > 0 then pcall(function() currencyRemote:FireServer(heartsNearPlayer) end) end
         end
     end)
 end
 
 -- ==============================================================================
--- 4. AUTO BUY & MERCHANT
+-- 5. AUTO BUY & MERCHANT
 -- ==============================================================================
 task.spawn(function()
     while task.wait(0.5) do
@@ -341,4 +377,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ SCRIPT UPDATED: TP ISOLATED & MAP WIPER ACTIVE")
+print("✅ SCRIPT UPDATED: DUNGEON FARM + STATS FIX")
