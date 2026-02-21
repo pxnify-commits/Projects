@@ -300,7 +300,7 @@ if currencyRemote and currencyHolder then
         if root then
             heartsNearPlayer = {} 
             for _, item in pairs(currencyHolder:GetChildren()) do
-                if item.Name == "Heart" then
+                if item.Name == "Heart, Crowns" then
                     local part = item:IsA("BasePart") and item or (item:IsA("Model") and (item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")))
                     if part then part.CanCollide = false; part.Velocity = Vector3.new(0,0,0); part.CFrame = root.CFrame; table.insert(heartsNearPlayer, item) end
                 end
